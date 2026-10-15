@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'budget_database.dart';
 
+/// Collects, validates, confirms, and saves a single budget entry.
 class NewBudgetPage extends StatefulWidget {
   const NewBudgetPage({super.key});
 
@@ -34,6 +35,7 @@ class _NewBudgetPageState extends State<NewBudgetPage> {
   }
 
   Future<void> _confirmBudgetEntry() async {
+    // Do not ask for confirmation until required fields pass validation.
     if (!_formKey.currentState!.validate()) return;
 
     final confirmed = await showDialog<bool>(
@@ -55,6 +57,7 @@ class _NewBudgetPageState extends State<NewBudgetPage> {
     );
     if (confirmed != true || !mounted) return;
 
+    // Return the save result to the main screen so it can refresh its list.
     setState(() => _isSaving = true);
     var saved = false;
     try {
@@ -71,7 +74,7 @@ class _NewBudgetPageState extends State<NewBudgetPage> {
 
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
-    Navigator.of(context).pop();
+    Navigator.of(context).pop(saved);
     messenger.showSnackBar(
       SnackBar(
         content: Text(

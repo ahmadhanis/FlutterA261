@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// A simple welcome screen shown briefly when the app starts.
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 

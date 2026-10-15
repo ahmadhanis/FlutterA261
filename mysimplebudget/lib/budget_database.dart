@@ -1,6 +1,7 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+/// Opens the local SQLite database and provides budget insert and read methods.
 class BudgetDatabase {
   BudgetDatabase._();
 
@@ -13,6 +14,7 @@ class BudgetDatabase {
   Future<Database> get database async {
     if (_database != null) return _database!;
 
+    // Opening a missing database creates it; onCreate adds the budgets table.
     final databasePath = await getDatabasesPath();
     final path = join(databasePath, _databaseName);
     _database = await openDatabase(
@@ -40,6 +42,7 @@ class BudgetDatabase {
     required double value,
     required String description,
   }) async {
+    // The returned row ID indicates that SQLite inserted the entry.
     final db = await database;
     return db.insert(_tableName, {
       'direction': direction,
@@ -48,5 +51,11 @@ class BudgetDatabase {
       'description': description,
       'created_at': DateTime.now().toIso8601String(),
     });
+  }
+
+  Future<List<Map<String, Object?>>> getAllBudgets() async {
+    final db = await database;
+    // Show newest entries first, using the ID to order entries with equal timestamps.
+    return db.query(_tableName, orderBy: 'created_at DESC, id DESC');
   }
 }

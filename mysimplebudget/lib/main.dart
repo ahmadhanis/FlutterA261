@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'mainscreen.dart';
 import 'splashscreen.dart';
 
+// Starts the app and switches from the splash screen to the main screen.
 void main() {
   runApp(const MainApp());
 }
@@ -17,6 +18,7 @@ class MainApp extends StatefulWidget {
 }
 
 class _MainAppState extends State<MainApp> {
+  // The timer updates this flag after the splash screen has been visible for 3 seconds.
   bool _showSplash = true;
   Timer? _splashTimer;
 
@@ -33,6 +35,7 @@ class _MainAppState extends State<MainApp> {
 
   @override
   void dispose() {
+    // Cancel the timer if the app widget is removed before it fires.
     _splashTimer?.cancel();
     super.dispose();
   }
