@@ -54,6 +54,50 @@ class _MainScreenState extends State<MainScreen> {
     if (saved == true) await _loadBudgets();
   }
 
+  Future<void> _confirmDeleteBudget(Map<String, Object?> budget) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete budget entry?'),
+        content: const Text('This budget entry will be permanently deleted.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final deleted = await BudgetDatabase.instance.deleteBudget(
+        budget['id'] as int,
+      );
+      if (!mounted) return;
+      await _loadBudgets();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            deleted > 0
+                ? 'Budget deleted successfully'
+                : 'Budget could not be deleted',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Failed to delete budget')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -93,6 +137,7 @@ class _MainScreenState extends State<MainScreen> {
         final isIncome = direction == 'in';
 
         return ListTile(
+          onLongPress: () => _confirmDeleteBudget(budget),
           leading: CircleAvatar(
             child: Icon(isIncome ? Icons.arrow_downward : Icons.arrow_upward),
           ),

@@ -1,7 +1,7 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
-/// Opens the local SQLite database and provides budget insert and read methods.
+/// Opens the local SQLite database and provides budget insert, read, and delete methods.
 class BudgetDatabase {
   BudgetDatabase._();
 
@@ -57,5 +57,10 @@ class BudgetDatabase {
     final db = await database;
     // Show newest entries first, using the ID to order entries with equal timestamps.
     return db.query(_tableName, orderBy: 'created_at DESC, id DESC');
+  }
+
+  Future<int> deleteBudget(int id) async {
+    final db = await database;
+    return db.delete(_tableName, where: 'id = ?', whereArgs: [id]);
   }
 }
