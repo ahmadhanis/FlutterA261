@@ -53,10 +53,26 @@ class BudgetDatabase {
     });
   }
 
-  Future<List<Map<String, Object?>>> getAllBudgets() async {
+  Future<List<Map<String, Object?>>> getBudgets({
+    required int limit,
+    required int offset,
+  }) async {
     final db = await database;
-    // Show newest entries first, using the ID to order entries with equal timestamps.
-    return db.query(_tableName, orderBy: 'created_at DESC, id DESC');
+    // Limit and offset let the list request one page at a time.
+    return db.query(
+      _tableName,
+      orderBy: 'created_at DESC, id DESC',
+      limit: limit,
+      offset: offset,
+    );
+  }
+
+  Future<int> getBudgetCount() async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS count FROM $_tableName',
+    );
+    return (result.first['count'] as num).toInt();
   }
 
   Future<int> deleteBudget(int id) async {

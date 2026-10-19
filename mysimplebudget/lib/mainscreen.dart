@@ -12,9 +12,13 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
+  static const int _pageSize = 10;
+
   List<Map<String, Object?>> _budgets = [];
   bool _isLoading = true;
   bool _loadFailed = false;
+  int _currentPage = 1;
+  int _totalPages = 1;
 
   @override
   void initState() {
@@ -23,19 +27,28 @@ class _MainScreenState extends State<MainScreen> {
     _loadBudgets();
   }
 
-  // Read all rows from SQLite and update the list or show an error state.
-  Future<void> _loadBudgets() async {
+  // Read one page from SQLite and update the list or show an error state.
+  Future<void> _loadBudgets({int page = 1}) async {
     setState(() {
       _isLoading = true;
       _loadFailed = false;
+      _currentPage = page;
     });
 
     try {
-      final budgets = await BudgetDatabase.instance.getAllBudgets();
+      final budgetCount = await BudgetDatabase.instance.getBudgetCount();
+      final totalPages = (budgetCount / _pageSize).ceil().clamp(1, 1 << 31);
+      final targetPage = page.clamp(1, totalPages);
+      final budgets = await BudgetDatabase.instance.getBudgets(
+        limit: _pageSize,
+        offset: (targetPage - 1) * _pageSize,
+      );
       if (!mounted) return;
       setState(() {
         _budgets = budgets;
         _isLoading = false;
+        _currentPage = targetPage;
+        _totalPages = totalPages;
       });
     } catch (_) {
       if (!mounted) return;
@@ -51,7 +64,7 @@ class _MainScreenState extends State<MainScreen> {
       MaterialPageRoute<bool>(builder: (context) => const NewBudgetPage()),
     );
     // The form returns true only after a successful insert.
-    if (saved == true) await _loadBudgets();
+    if (saved == true) await _loadBudgets(page: 1);
   }
 
   Future<void> _confirmDeleteBudget(Map<String, Object?> budget) async {
@@ -80,7 +93,7 @@ class _MainScreenState extends State<MainScreen> {
         budget['id'] as int,
       );
       if (!mounted) return;
-      await _loadBudgets();
+      await _loadBudgets(page: _currentPage);
       messenger.showSnackBar(
         SnackBar(
           content: Text(
@@ -98,14 +111,114 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  Future<void> _showBudgetDetails(Map<String, Object?> budget) async {
+    final isIncome = budget['direction'] == 'in';
+    final createdAt = DateTime.tryParse(budget['created_at'] as String);
+    final formattedDate = createdAt == null
+        ? budget['created_at'] as String
+        : createdAt.toLocal().toString().split('.').first;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(budget['type'] as String),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _detailRow('Direction', isIncome ? 'Income' : 'Expense'),
+              _detailRow(
+                'Value',
+                (budget['value'] as num).toDouble().toStringAsFixed(2),
+              ),
+              _detailRow(
+                'Description',
+                (budget['description'] as String).isEmpty
+                    ? 'No description'
+                    : budget['description'] as String,
+              ),
+              _detailRow('Created', formattedDate),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text(value),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('My Simple Budget')),
-      body: _buildBody(),
+      appBar: AppBar(
+        title: const Text('My Simple Budget'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh budgets',
+            onPressed: _isLoading
+                ? null
+                : () => _loadBudgets(page: _currentPage),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(child: _buildBody()),
+          if (!_isLoading && !_loadFailed && _budgets.isNotEmpty)
+            _buildPaginationControls(),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _openNewBudgetPage,
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildPaginationControls() {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            IconButton(
+              tooltip: 'Previous page',
+              onPressed: _currentPage > 1 && !_isLoading
+                  ? () => _loadBudgets(page: _currentPage - 1)
+                  : null,
+              icon: const Icon(Icons.chevron_left),
+            ),
+            Text('Page $_currentPage of $_totalPages'),
+            IconButton(
+              tooltip: 'Next page',
+              onPressed: _currentPage < _totalPages && !_isLoading
+                  ? () => _loadBudgets(page: _currentPage + 1)
+                  : null,
+              icon: const Icon(Icons.chevron_right),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -118,7 +231,10 @@ class _MainScreenState extends State<MainScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text('Could not load budgets.'),
-            TextButton(onPressed: _loadBudgets, child: const Text('Retry')),
+            TextButton(
+              onPressed: () => _loadBudgets(page: _currentPage),
+              child: const Text('Retry'),
+            ),
           ],
         ),
       );
@@ -137,6 +253,7 @@ class _MainScreenState extends State<MainScreen> {
         final isIncome = direction == 'in';
 
         return ListTile(
+          onTap: () => _showBudgetDetails(budget),
           onLongPress: () => _confirmDeleteBudget(budget),
           leading: CircleAvatar(
             child: Icon(isIncome ? Icons.arrow_downward : Icons.arrow_upward),
