@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'screens/splashscreen.dart';
+import 'views/splashscreen.dart';
 
 void main() {
   runApp(const BudgetPlusApp());

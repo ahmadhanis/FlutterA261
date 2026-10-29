@@ -1,65 +1,90 @@
 import 'package:flutter/material.dart';
 
-import 'registrationscreen.dart';
+import '../controllers/database_controller.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class RegistrationScreen extends StatefulWidget {
+  const RegistrationScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegistrationScreen> createState() => _RegistrationScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _RegistrationScreenState extends State<RegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _rememberMe = true;
+  final _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _acceptedTerms = false;
+  final _databaseController = DatabaseController();
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
+    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _databaseController.dispose();
     super.dispose();
   }
 
-  void _signIn() {
-    if (_formKey.currentState!.validate()) {
+  Future<void> _createAccount() async {
+    if (_isSubmitting) return;
+    final valid = _formKey.currentState!.validate();
+    if (!_acceptedTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sign in will be available when the API is connected.'),
-        ),
+        const SnackBar(content: Text('Please accept the terms to continue.')),
       );
+      return;
     }
-  }
+    if (!valid) return;
 
-  void _forgotAccount() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Account recovery will be available soon.')),
-    );
-  }
-
-  void _openRegistration() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const RegistrationScreen()));
+    setState(() => _isSubmitting = true);
+    try {
+      await _databaseController.registerUser(
+        name: _nameController.text,
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } on DatabaseControllerException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final compact = size.height < 760;
+    final compact = size.height < 820;
+    final horizontalPadding = size.width < 360 ? 22.0 : 32.0;
 
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF7F8F5),
+        surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          tooltip: 'Back to sign in',
+          onPressed: () => Navigator.of(context).maybePop(),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+      ),
       body: SafeArea(
+        top: false,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
-                size.width < 360 ? 22 : 32,
-                compact ? 24 : 40,
-                size.width < 360 ? 22 : 32,
+                horizontalPadding,
+                compact ? 8 : 20,
+                horizontalPadding,
                 compact ? 24 : 40,
               ),
               child: Form(
@@ -67,34 +92,48 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Center(child: _BrandMark(size: compact ? 68 : 76)),
-                    SizedBox(height: compact ? 24 : 32),
                     const Text(
-                      'Welcome back',
+                      'Create your account',
                       style: TextStyle(
                         color: Color(0xFF172A25),
-                        fontSize: 29,
+                        fontSize: 28,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -.8,
                       ),
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Sign in to pick up where you left off.',
+                      'A few details to get your money plan started.',
                       style: TextStyle(
                         color: Color(0xFF65736E),
                         fontSize: 15,
                         height: 1.5,
                       ),
                     ),
-                    SizedBox(height: compact ? 26 : 34),
+                    SizedBox(height: compact ? 22 : 30),
+                    const _FieldLabel('Full name'),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _nameController,
+                      textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.name],
+                      decoration: _inputDecoration(
+                        hint: 'Your name',
+                        icon: Icons.person_outline_rounded,
+                      ),
+                      validator: (value) => (value?.trim().isNotEmpty ?? false)
+                          ? null
+                          : 'Enter your name',
+                    ),
+                    const SizedBox(height: 16),
                     const _FieldLabel('Email address'),
-                    const SizedBox(height: 9),
+                    const SizedBox(height: 8),
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
-                      autofillHints: const [AutofillHints.email],
+                      autofillHints: const [AutofillHints.newUsername],
                       decoration: _inputDecoration(
                         hint: 'you@example.com',
                         icon: Icons.mail_outline_rounded,
@@ -109,18 +148,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     const _FieldLabel('Password'),
-                    const SizedBox(height: 9),
+                    const SizedBox(height: 8),
                     TextFormField(
                       controller: _passwordController,
                       obscureText: _obscurePassword,
-                      textInputAction: TextInputAction.done,
-                      autofillHints: const [AutofillHints.password],
-                      onFieldSubmitted: (_) => _signIn(),
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.newPassword],
                       decoration:
                           _inputDecoration(
-                            hint: 'Enter your password',
+                            hint: 'At least 8 characters',
                             icon: Icons.lock_outline_rounded,
                           ).copyWith(
                             suffixIcon: IconButton(
@@ -139,57 +177,68 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
-                      validator: (value) =>
-                          (value ?? '').isEmpty ? 'Enter your password' : null,
+                      validator: (value) {
+                        if ((value ?? '').length < 8) {
+                          return 'Use at least 8 characters';
+                        }
+                        return null;
+                      },
                     ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        SizedBox(
-                          height: 44,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Checkbox.adaptive(
-                                value: _rememberMe,
-                                activeColor: const Color(0xFF147D64),
-                                onChanged: (value) => setState(
-                                  () => _rememberMe = value ?? false,
-                                ),
+                    const SizedBox(height: 16),
+                    const _FieldLabel('Confirm password'),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _confirmPasswordController,
+                      obscureText: _obscureConfirmPassword,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => _createAccount(),
+                      decoration:
+                          _inputDecoration(
+                            hint: 'Enter your password again',
+                            icon: Icons.lock_outline_rounded,
+                          ).copyWith(
+                            suffixIcon: IconButton(
+                              tooltip: _obscureConfirmPassword
+                                  ? 'Show password'
+                                  : 'Hide password',
+                              onPressed: () => setState(
+                                () => _obscureConfirmPassword =
+                                    !_obscureConfirmPassword,
                               ),
-                              const Text(
-                                'Remember me',
-                                style: TextStyle(
-                                  color: Color(0xFF52615B),
-                                  fontSize: 13,
-                                ),
+                              icon: Icon(
+                                _obscureConfirmPassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                                color: const Color(0xFF78857F),
+                                size: 20,
                               ),
-                            ],
-                          ),
-                        ),
-                        const Spacer(),
-                        TextButton(
-                          onPressed: _forgotAccount,
-                          style: TextButton.styleFrom(
-                            foregroundColor: const Color(0xFF147D64),
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                          ),
-                          child: const Text(
-                            'Forgot account?',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ),
-                      ],
+                      validator: (value) => value == _passwordController.text
+                          ? null
+                          : 'Passwords do not match',
                     ),
-                    SizedBox(height: compact ? 18 : 24),
+                    const SizedBox(height: 12),
+                    CheckboxListTile.adaptive(
+                      value: _acceptedTerms,
+                      onChanged: (value) =>
+                          setState(() => _acceptedTerms = value ?? false),
+                      activeColor: const Color(0xFF147D64),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: const Text(
+                        'I agree to the Terms of Service and Privacy Policy',
+                        style: TextStyle(
+                          color: Color(0xFF52615B),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: compact ? 14 : 20),
                     SizedBox(
                       width: double.infinity,
                       height: 54,
                       child: FilledButton(
-                        onPressed: _signIn,
                         style: FilledButton.styleFrom(
                           backgroundColor: const Color(0xFF147D64),
                           foregroundColor: Colors.white,
@@ -197,24 +246,23 @@ class _LoginScreenState extends State<LoginScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: const Text(
-                          'Sign in',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    const Center(
-                      child: Text(
-                        'Your finances, thoughtfully organized.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Color(0xFF87928D),
-                          fontSize: 12,
-                        ),
+                        onPressed: _isSubmitting ? null : _createAccount,
+                        child: _isSubmitting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Create account',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -224,14 +272,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           const Text(
-                            "Don't have an account? ",
+                            'Already have an account? ',
                             style: TextStyle(
                               color: Color(0xFF65736E),
                               fontSize: 13,
                             ),
                           ),
                           TextButton(
-                            onPressed: _openRegistration,
+                            onPressed: () => Navigator.of(context).maybePop(),
                             style: TextButton.styleFrom(
                               foregroundColor: const Color(0xFF147D64),
                               padding: const EdgeInsets.symmetric(
@@ -239,7 +287,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                             child: const Text(
-                              'Create account',
+                              'Sign in',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -270,7 +318,7 @@ InputDecoration _inputDecoration({
     prefixIcon: Icon(icon, color: const Color(0xFF78857F), size: 20),
     filled: true,
     fillColor: Colors.white,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(15),
       borderSide: const BorderSide(color: Color(0xFFE5EAE6)),
@@ -307,39 +355,6 @@ class _FieldLabel extends StatelessWidget {
         color: Color(0xFF263831),
         fontSize: 13,
         fontWeight: FontWeight.w600,
-      ),
-    );
-  }
-}
-
-class _BrandMark extends StatelessWidget {
-  const _BrandMark({required this.size});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: const Color(0xFFE2F1EB),
-        borderRadius: BorderRadius.circular(size * .31),
-      ),
-      child: Center(
-        child: Container(
-          width: size * .65,
-          height: size * .65,
-          decoration: BoxDecoration(
-            color: const Color(0xFF147D64),
-            borderRadius: BorderRadius.circular(size * .20),
-          ),
-          child: Icon(
-            Icons.account_balance_wallet_rounded,
-            color: Colors.white,
-            size: size * .34,
-          ),
-        ),
       ),
     );
   }

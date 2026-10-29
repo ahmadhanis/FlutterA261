@@ -1,0 +1,3 @@
+<Files "budgetplusdb.sqlite">
+    Require all denied
+</Files>
