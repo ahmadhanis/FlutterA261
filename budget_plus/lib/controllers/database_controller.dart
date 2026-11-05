@@ -75,5 +75,51 @@ class DatabaseController {
     }
   }
 
+  Future<UserModel> loginUser({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      // Send the login form fields to the PHP API.
+      final response = await _client
+          .post(
+            Uri.parse('${ApiConfig.serverIpAddress}/budgetplus/login.php'),
+            body: {'email': email.trim(), 'password': password},
+          )
+          .timeout(const Duration(seconds: 15));
+
+      // PHP returns JSON with a success message and account details.
+      final result = jsonDecode(response.body);
+      print('Login response: $result');
+      if (result is! Map<String, dynamic>) {
+        throw const DatabaseControllerException(
+          'The server returned an invalid response.',
+        );
+      }
+
+      if (response.statusCode != 200 || result['success'] != true) {
+        throw DatabaseControllerException(
+          result['message']?.toString() ?? 'Login failed.',
+        );
+      }
+
+      final userData = result['user'];
+      if (userData is! Map<String, dynamic>) {
+        throw const DatabaseControllerException(
+          'The server did not return account details.',
+        );
+      }
+
+      return UserModel.fromJson(userData);
+    } catch (error) {
+      if (error is DatabaseControllerException) rethrow;
+
+      throw const DatabaseControllerException(
+        'Could not complete login. Check that Apache is running and the server '
+        'address is correct.',
+      );
+    }
+  }
+
   void dispose() => _client.close();
 }

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../controllers/database_controller.dart';
+import 'mainscreen.dart';
 import 'registrationscreen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -13,23 +16,105 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _rememberMe = true;
+  final _databaseController = DatabaseController();
+  final _preferences = SharedPreferencesAsync();
+  bool _rememberMe = false;
   bool _obscurePassword = true;
+  bool _isSubmitting = false;
+
+  static const _rememberMeKey = 'remember_login';
+  static const _savedEmailKey = 'saved_login_email';
+  static const _savedPasswordKey = 'saved_login_password';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedLogin();
+  }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _databaseController.dispose();
     super.dispose();
   }
 
-  void _signIn() {
-    if (_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sign in will be available when the API is connected.'),
-        ),
+  Future<void> _signIn() async {
+    if (_isSubmitting || !_formKey.currentState!.validate()) return;
+
+    setState(() => _isSubmitting = true);
+    try {
+      await _databaseController.loginUser(
+        email: _emailController.text,
+        password: _passwordController.text,
       );
+      await _saveLoginDetails();
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const MainScreen()),
+      );
+    } on DatabaseControllerException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _loadSavedLogin() async {
+    try {
+      final rememberLogin = await _preferences.getBool(_rememberMeKey) ?? false;
+      final savedEmail = await _preferences.getString(_savedEmailKey) ?? '';
+      final savedPassword =
+          await _preferences.getString(_savedPasswordKey) ?? '';
+      if (!mounted) return;
+
+      setState(() {
+        _rememberMe = rememberLogin;
+        if (rememberLogin) {
+          _emailController.text = savedEmail;
+          _passwordController.text = savedPassword;
+        }
+      });
+    } catch (_) {
+      // The login form remains usable if saved preferences cannot be read.
+    }
+  }
+
+  Future<void> _saveLoginDetails() async {
+    try {
+      await _preferences.setBool(_rememberMeKey, _rememberMe);
+
+      if (_rememberMe) {
+        await _preferences.setString(
+          _savedEmailKey,
+          _emailController.text.trim(),
+        );
+        await _preferences.setString(
+          _savedPasswordKey,
+          _passwordController.text,
+        );
+      } else {
+        await _preferences.remove(_savedEmailKey);
+        await _preferences.remove(_savedPasswordKey);
+      }
+    } catch (_) {
+      // Do not block a successful login if preferences cannot be saved.
+    }
+  }
+
+  Future<void> _updateRememberMe(bool value) async {
+    setState(() => _rememberMe = value);
+    if (value) return;
+
+    try {
+      await _preferences.setBool(_rememberMeKey, false);
+      await _preferences.remove(_savedEmailKey);
+      await _preferences.remove(_savedPasswordKey);
+    } catch (_) {
+      // Keep the current login form usable if preferences cannot be updated.
     }
   }
 
@@ -160,9 +245,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               Checkbox.adaptive(
                                 value: _rememberMe,
                                 activeColor: const Color(0xFF147D64),
-                                onChanged: (value) => setState(
-                                  () => _rememberMe = value ?? false,
-                                ),
+                                onChanged: (value) =>
+                                    _updateRememberMe(value ?? false),
                               ),
                               const Text(
                                 'Remember me',
@@ -196,7 +280,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       width: double.infinity,
                       height: 54,
                       child: FilledButton(
-                        onPressed: _signIn,
+                        onPressed: _isSubmitting ? null : _signIn,
                         style: FilledButton.styleFrom(
                           backgroundColor: const Color(0xFF147D64),
                           foregroundColor: Colors.white,
@@ -204,13 +288,22 @@ class _LoginScreenState extends State<LoginScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: const Text(
-                          'Sign in',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        child: _isSubmitting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Sign in',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 24),

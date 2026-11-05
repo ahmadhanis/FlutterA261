@@ -44,10 +44,10 @@ $name = trim($name);
 $email = strtolower(trim($email));
 
 // Check the fields before saving them.
-if ($name === '' || mb_strlen($name) > 120) {
+if ($name === '' || mb_strlen($name) > 50) {
     sendJsonResponse(422, [
         'success' => false,
-        'message' => 'Enter a name up to 120 characters long.',
+        'message' => 'Enter a name up to 50 characters long.',
     ]);
 }
 
@@ -66,21 +66,8 @@ if (strlen($password) < 8 || strlen($password) > 4096) {
 }
 
 try {
-    // Connect to the SQLite database in this folder.
-    // SQLite creates the file automatically if it does not exist.
-    $databaseFile = __DIR__ . '/budgetplusdb.sqlite';
-    $database = new PDO('sqlite:' . $databaseFile);
-    $database->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-    // Create the users table the first time this API is used.
-    $createTableSql = "CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL COLLATE NOCASE UNIQUE,
-        password_hash TEXT NOT NULL,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )";
-    $database->exec($createTableSql);
+    // Load the database connection from the shared connection file.
+    require_once __DIR__ . '/dbconnect.php';
 
     // Never save a plain-text password. Store a secure password hash instead.
     $passwordHash = password_hash($password, PASSWORD_DEFAULT);

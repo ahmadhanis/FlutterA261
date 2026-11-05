@@ -308,6 +308,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   }
 }
 
+
 InputDecoration _inputDecoration({
   required String hint,
   required IconData icon,
