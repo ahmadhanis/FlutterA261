@@ -46,3 +46,8 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Local backend data and uploaded receipt images
+backend_backup/budgetplusdb.sqlite
+backend_backup/uploads/*
+!backend_backup/uploads/.htaccess
