@@ -45,14 +45,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isSubmitting = true);
     try {
-      await _databaseController.loginUser(
+      final user = await _databaseController.loginUser(
         email: _emailController.text,
         password: _passwordController.text,
       );
       await _saveLoginDetails();
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const MainScreen()),
+        MaterialPageRoute<void>(builder: (_) => MainScreen(userId: user.id)),
       );
     } on DatabaseControllerException catch (error) {
       if (!mounted) return;
