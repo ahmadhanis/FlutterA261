@@ -86,6 +86,48 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  Future<void> _deleteEntry(BudgetEntryModel entry) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete budget entry?'),
+        content: Text(
+          'Are you sure you want to delete "${entry.title}"? This action '
+          'cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _databaseController.deleteBudgetEntry(
+        entryId: entry.id,
+        userId: widget.userId,
+      );
+      if (!mounted) return;
+      setState(() => _entries.removeWhere((item) => item.id == entry.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Entry deleted successfully.')),
+      );
+    } on DatabaseControllerException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -177,18 +219,26 @@ class _MainScreenState extends State<MainScreen> {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         itemCount: _entries.length,
         separatorBuilder: (_, _) => const SizedBox(height: 8),
-        itemBuilder: (context, index) =>
-            _BudgetEntryTile(entry: _entries[index], onEdit: _editEntry),
+        itemBuilder: (context, index) => _BudgetEntryTile(
+          entry: _entries[index],
+          onEdit: _editEntry,
+          onDelete: _deleteEntry,
+        ),
       ),
     );
   }
 }
 
 class _BudgetEntryTile extends StatelessWidget {
-  const _BudgetEntryTile({required this.entry, required this.onEdit});
+  const _BudgetEntryTile({
+    required this.entry,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final BudgetEntryModel entry;
   final ValueChanged<BudgetEntryModel> onEdit;
+  final ValueChanged<BudgetEntryModel> onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -209,6 +259,7 @@ class _BudgetEntryTile extends StatelessWidget {
 
     return ListTile(
       onTap: () => _showDetails(context),
+      onLongPress: () => onDelete(entry),
       tileColor: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),

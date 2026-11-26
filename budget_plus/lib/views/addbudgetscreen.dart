@@ -160,6 +160,30 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
   Future<void> _saveEntry() async {
     if (_isSaving || !_formKey.currentState!.validate()) return;
 
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(_isEditing ? 'Update budget entry?' : 'Add budget entry?'),
+        content: Text(
+          _isEditing
+              ? 'Save your changes to "${_titleController.text.trim()}"?'
+              : 'Add "${_titleController.text.trim()}" to your budget entries?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(_isEditing ? 'Update' : 'Add'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
     setState(() => _isSaving = true);
     try {
       if (_isEditing) {

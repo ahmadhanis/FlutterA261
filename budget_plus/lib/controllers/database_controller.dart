@@ -299,6 +299,45 @@ class DatabaseController {
     }
   }
 
+  Future<void> deleteBudgetEntry({
+    required int entryId,
+    required int userId,
+  }) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse(
+              '${ApiConfig.serverIpAddress}/budgetplus/deletebudget.php',
+            ),
+            body: {
+              'entry_id': entryId.toString(),
+              'user_id': userId.toString(),
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+      final result = jsonDecode(response.body);
+
+      if (result is! Map<String, dynamic>) {
+        throw const DatabaseControllerException(
+          'The server returned an invalid response.',
+        );
+      }
+
+      if (response.statusCode != 200 || result['success'] != true) {
+        throw DatabaseControllerException(
+          result['message']?.toString() ?? 'Could not delete the entry.',
+        );
+      }
+    } catch (error) {
+      if (error is DatabaseControllerException) rethrow;
+
+      throw const DatabaseControllerException(
+        'Could not delete the entry. Check that Apache is running and the '
+        'server address is correct.',
+      );
+    }
+  }
+
   void dispose() => _client.close();
 }
 
